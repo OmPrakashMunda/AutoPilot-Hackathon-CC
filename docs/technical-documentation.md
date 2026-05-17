@@ -50,12 +50,48 @@ User (CMO)
 1. User submits brief via AI Manager chat
 2. Backend calls Supervity streaming API with Orchestrator workflow ID
 3. Orchestrator executes steps sequentially:
-   - Step 1: Trend Analysis (relevance scoring)
-   - Step 2: Content Creation (multi-channel + image)
-   - Step 3: Brand Safety Check (policy enforcement)
-   - Step 4: Publishing (LinkedIn, Blog, Email)
-   - Step 5: Exception Handling (flag violations)
-   - Step 6: Notification (Slack, Outlook, Dropbox log)
+
+   **Step 1: Trend Analysis** (Trend Analyser Agent)
+   - Receives the topic from the brief
+   - Performs real-time web research on the topic
+   - Scores relevance to NovaBrew's audience (0 to 1)
+   - If score < 0.5: aborts campaign, notifies via Slack and Outlook
+   - If score > 0.7: proceeds with campaign angle recommendation
+   - Logs result to Dropbox /logs/campaign-log.csv
+
+   **Step 2: Content Creation** (Content Adapter Agent)
+   - Reads brand guidelines, product catalog, and sample campaigns from Dropbox
+   - Generates content variants for LinkedIn, Email, and Blog
+   - Adapts tone and format per channel (professional for LinkedIn, punchy for blog)
+   - Generates an AI image for the campaign using built-in image generation
+   - Saves campaign document to Dropbox /campaigns/
+
+   **Step 3: Brand Safety Check** (Brand Safety Checker Agent)
+   - Reads banned terms list from Dropbox /policies/banned-terms.csv
+   - Reads brand voice rules from Dropbox /policies/brand-voice-rules.csv
+   - Scans every content variant for: competitor names, health claims, emoji count, ALL CAPS, missing CTAs
+   - Scores brand voice alignment (0 to 1, threshold: 0.8)
+   - Returns verdict per variant: approved or flagged
+
+   **Step 4: Publishing** (Social Scheduler Agent)
+   - Takes only approved variants from Step 3
+   - Publishes LinkedIn post with AI-generated image attached
+   - Publishes blog post via Blog API (https://blog.omprakash.me) with image
+   - Creates email draft in Microsoft Outlook
+   - Enforces daily posting limits (max 3 per channel)
+   - Saves schedule to Dropbox /schedules/
+
+   **Step 5: Exception Handling** (Orchestrator)
+   - Creates exception objects for any flagged variants
+   - Sends Slack alert to channel for each exception
+   - Routes exceptions to Command Center Workbench for human review
+
+   **Step 6: Notification and Logging** (Orchestrator)
+   - Sends campaign summary email via Microsoft Outlook
+   - Sends completion notification to Slack
+   - Appends execution log to Dropbox /logs/campaign-log.csv
+   - Returns full JSON response with published URLs, exceptions, and execution trace
+
 4. Backend parses SSE response, stores campaign + traces in PostgreSQL
 5. Frontend displays results in chat, campaigns page, and insights
 
