@@ -43,7 +43,3 @@ docker compose up --build -d
 - AI Policies — Brand safety rules with Dropbox sync
 - AI Insights — Agent performance and publishing stats
 - AI Manager — Chat interface to trigger campaigns
-
-## Team
-
-Om Prakash Munda
