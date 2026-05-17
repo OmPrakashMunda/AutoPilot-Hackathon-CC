@@ -37,11 +37,16 @@ from .core.storage import GCSStorage, LocalStorage, StorageBackend
 from .middleware import AuditMiddleware
 from .routers import (
     admin_router,
+    ai_router,
     audit_router,
     auth_router,
     examples_router,
     health_router,
+    insights_router,
     items_router,
+    policies_router,
+    seed_router,
+    workbench_router,
 )
 from .security import get_current_user, verify_access
 
@@ -153,6 +158,21 @@ api_router.include_router(items_router)
 
 # Authorization pattern examples
 api_router.include_router(examples_router)
+
+# AI Campaign orchestration
+api_router.include_router(ai_router)
+
+# AI Workbench — exception management
+api_router.include_router(workbench_router)
+
+# AI Policies — CRUD + Dropbox sync
+api_router.include_router(policies_router)
+
+# AI Insights — aggregated metrics
+api_router.include_router(insights_router)
+
+# Seed endpoint — populate default policies
+api_router.include_router(seed_router)
 
 
 # =============================================================================

@@ -12,11 +12,11 @@ interface Capability {
 
 const CAPABILITIES: Capability[] = [
   { icon: Icons.helpCircle, label: 'What can you help me with?', query: 'What can you help me with?' },
-  { icon: Icons.activity, label: 'Show recent activity', query: 'Show me recent activity' },
-  { icon: Icons.fileText, label: 'Generate a report', query: 'Generate a report' },
-  { icon: Icons.brain, label: 'Create a policy', query: 'Help me create a new policy' },
-  { icon: Icons.lightbulb, label: 'Show insights', query: 'Show me AI insights' },
-  { icon: Icons.info, label: 'Explain this page', query: 'Explain this page to me' },
+  { icon: Icons.zap, label: 'Create a campaign', query: 'Create a campaign about World Coffee Day for NovaBrew Focus' },
+  { icon: Icons.sparkles, label: 'Launch trending content', query: 'Create content about Monday productivity rituals for NovaBrew Classic' },
+  { icon: Icons.shield, label: 'Check brand safety', query: 'What are the banned competitor names?' },
+  { icon: Icons.activity, label: 'Show campaign insights', query: 'Show me campaign insights' },
+  { icon: Icons.brain, label: 'Ask about NovaBrew', query: 'What is NovaBrew Focus and what are its ingredients?' },
 ]
 
 interface CapabilityBubblesProps {

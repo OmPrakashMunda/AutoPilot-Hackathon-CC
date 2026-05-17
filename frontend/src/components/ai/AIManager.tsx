@@ -241,13 +241,13 @@ export function AIManager() {
                         id="ai-manager-title"
                         className="text-xl font-semibold text-brand-navy"
                       >
-                        AutoPilot AI
+                        NovaBrew AI
                       </h2>
                       <p 
                         id="ai-manager-description"
                         className="text-sm text-muted-foreground"
                       >
-                        Your intelligent command center assistant
+                        Your marketing command center assistant
                       </p>
                     </div>
                   </div>

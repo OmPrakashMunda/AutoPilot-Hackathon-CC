@@ -1,131 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { CardWatermark } from '@/components/ui/card-watermark'
 import { Icons } from '@/components/ui/icons'
-import { PolicyCard, type Policy } from '@/components/ai/policies/PolicyCard'
-import { PolicyDetailModal } from '@/components/ai/policies/PolicyDetailModal'
-import { PolicyEditModal } from '@/components/ai/policies/PolicyEditModal'
-import { CreateWithAI } from '@/components/ai/policies/CreateWithAI'
-import { PermissionMatrixTab } from '@/components/ai/policies/PermissionMatrixTab'
-import { StructuredBuilder } from '@/components/ai/policies/StructuredBuilder'
-
-// ============================================================================
-// Demo Data — Replace with your own API integration
-// ============================================================================
-
-const DEMO_POLICIES: Policy[] = [
-  {
-    id: 'demo-001',
-    name: 'Auto-Approve Low Value Invoices',
-    description: 'Automatically approve invoices under $500 from approved vendors.',
-    natural_language: 'If an invoice total is less than $500 and the vendor is in our approved vendor list, automatically approve for payment without requiring manual review.',
-    summary: 'Auto-approves low-value invoices from trusted vendors to reduce manual workload.',
-    policy_type: 'logical',
-    dsl: { conditions: [{ field: 'amount', operator: 'less_than', value: '500' }, { field: 'vendor_status', operator: 'equals', value: 'approved' }], actions: [{ type: 'auto_approve' }], match_mode: 'all' },
-    refined_instruction: null,
-    ai_instruction: 'WHEN amount < 500 AND vendor_status = approved THEN auto_approve',
-    entity_name: 'invoice',
-    is_active: true,
-    priority: 10,
-    tags: ['finance', 'auto-approve', 'demo'],
-    execution_count: 120,
-    last_executed_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-002',
-    name: 'CFO Approval for Large Transactions',
-    description: 'Require CFO approval for any transaction exceeding $50,000.',
-    natural_language: 'Any transaction or purchase order exceeding $50,000 must be reviewed and approved by the CFO before processing.',
-    summary: 'Enforces executive approval on high-value transactions.',
-    policy_type: 'logical',
-    dsl: { conditions: [{ field: 'amount', operator: 'greater_than', value: '50000' }], actions: [{ type: 'require_approval', value: 'CFO' }], match_mode: 'all' },
-    refined_instruction: null,
-    ai_instruction: 'WHEN amount > 50000 THEN require_approval(CFO)',
-    entity_name: 'transaction',
-    is_active: true,
-    priority: 5,
-    tags: ['finance', 'escalation', 'demo'],
-    execution_count: 45,
-    last_executed_at: new Date(Date.now() - 3600000).toISOString(),
-    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-003',
-    name: 'New Employee Onboarding Checklist',
-    description: 'Automatically assign onboarding steps when a new employee is created.',
-    natural_language: 'When a new employee record is created, automatically assign the standard onboarding checklist, notify their manager, and schedule the Day 1 orientation meeting.',
-    summary: 'Triggers automated onboarding workflow for new hires.',
-    policy_type: 'natural_language',
-    dsl: null,
-    refined_instruction: 'On new employee creation: assign onboarding checklist, notify manager, schedule Day 1 orientation.',
-    ai_instruction: 'On new employee creation: assign onboarding checklist, notify manager, schedule Day 1 orientation.',
-    entity_name: 'employee',
-    is_active: true,
-    priority: 15,
-    tags: ['hr', 'onboarding', 'demo'],
-    execution_count: 30,
-    last_executed_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 6 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-004',
-    name: 'Suspicious Login Alert',
-    description: 'Flag and alert on logins from new devices or unusual locations.',
-    natural_language: 'If a user logs in from a new device or from a country they have never logged in from before, flag the session for security review and send an alert to the user email.',
-    summary: 'Detects and alerts on anomalous login patterns for security.',
-    policy_type: 'natural_language',
-    dsl: null,
-    refined_instruction: 'On login: if device is new OR country is new, flag session for review, send email alert.',
-    ai_instruction: 'On login: if device is new OR country is new, flag session for review, send email alert.',
-    entity_name: 'session',
-    is_active: true,
-    priority: 1,
-    tags: ['security', 'alerting', 'demo'],
-    execution_count: 85,
-    last_executed_at: new Date(Date.now() - 30 * 60000).toISOString(),
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 8 * 3600000).toISOString(),
-  },
-  {
-    id: 'demo-005',
-    name: 'Enterprise Ticket Escalation',
-    description: 'Auto-escalate support tickets from high-value customers.',
-    natural_language: 'When a support ticket is created by an enterprise-tier customer or a customer with annual contract value over $100K, automatically escalate to Tier 2 support and set priority to high.',
-    summary: 'Ensures enterprise customers receive priority support.',
-    policy_type: 'logical',
-    dsl: { conditions: [{ field: 'customer_tier', operator: 'equals', value: 'enterprise' }], actions: [{ type: 'escalate', value: 'tier_2' }, { type: 'set_priority', value: 'high' }], match_mode: 'any' },
-    refined_instruction: null,
-    ai_instruction: 'WHEN customer_tier = enterprise OR contract_value > 100000 THEN escalate(tier_2), set_priority(high)',
-    entity_name: 'ticket',
-    is_active: false,
-    priority: 8,
-    tags: ['support', 'escalation', 'demo'],
-    execution_count: 15,
-    last_executed_at: new Date(Date.now() - 12 * 3600000).toISOString(),
-    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-    updated_at: new Date(Date.now() - 10 * 3600000).toISOString(),
-  },
-]
-
-// ============================================================================
-// Animation Variants
-// ============================================================================
+import { apiClient } from '@/lib/api-client'
 
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
 }
 
 const itemVariants = {
@@ -133,185 +18,121 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 }
 
-// ============================================================================
-// Types
-// ============================================================================
+interface Policy {
+  id: number
+  name: string
+  category: string
+  rule_text: string
+  severity: string
+  is_active: boolean
+  created_at: string | null
+}
 
-type TabType = 'policies' | 'create-ai' | 'structured' | 'matrix'
-type FilterType = 'all' | 'active' | 'inactive' | 'logical' | 'natural_language'
-type SortType = 'newest' | 'oldest' | 'priority' | 'name' | 'executions'
+function SeverityBadge({ severity }: { severity: string }) {
+  const colors: Record<string, string> = {
+    block: 'bg-red-100 text-red-700 border-red-200',
+    flag: 'bg-amber-100 text-amber-700 border-amber-200',
+    warn: 'bg-blue-100 text-blue-700 border-blue-200',
+  }
+  return (
+    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium border', colors[severity] || colors.flag)}>
+      {severity}
+    </span>
+  )
+}
 
-// ============================================================================
-// Tab Configuration
-// ============================================================================
-
-const TABS = [
-  { id: 'policies' as TabType, label: 'Policies', Icon: Icons.layers },
-  { id: 'create-ai' as TabType, label: 'Create with AI', Icon: Icons.sparkles },
-  { id: 'structured' as TabType, label: 'Structured Builder', Icon: Icons.grid },
-  { id: 'matrix' as TabType, label: 'Permission Matrix', Icon: Icons.table },
-]
-
-// ============================================================================
-// Page Component
-// ============================================================================
+function CategoryBadge({ category }: { category: string }) {
+  const colors: Record<string, string> = {
+    banned_term: 'bg-red-50 text-red-600',
+    brand_voice_rule: 'bg-purple-50 text-purple-600',
+    posting_limit: 'bg-blue-50 text-blue-600',
+    custom: 'bg-gray-50 text-gray-600',
+  }
+  const labels: Record<string, string> = {
+    banned_term: 'Banned Term',
+    brand_voice_rule: 'Brand Voice',
+    posting_limit: 'Posting Limit',
+    custom: 'Custom',
+  }
+  return (
+    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', colors[category] || colors.custom)}>
+      {labels[category] || category}
+    </span>
+  )
+}
 
 export default function AIPoliciesPage() {
-  // State
   const [policies, setPolicies] = useState<Policy[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<TabType>('policies')
-  
-  // Modal state
-  const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
-  const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  
-  // Filters
-  const [filter, setFilter] = useState<FilterType>('all')
-  const [sortBy, setSortBy] = useState<SortType>('newest')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filter, setFilter] = useState<string>('all')
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newPolicy, setNewPolicy] = useState({ name: '', category: 'banned_term', rule_text: '', severity: 'block' })
+  const [isAdding, setIsAdding] = useState(false)
 
-  // Structured builder state
-  const [structuredDSL, setStructuredDSL] = useState<{conditions: Array<{field: string; operator: string; value: string}>; actions: Array<{type: string; value?: string}>; match_mode: 'all' | 'any'} | null>(null)
-  const [structuredName, setStructuredName] = useState('')
-  const [isSavingStructured, setIsSavingStructured] = useState(false)
-
-  // ============================================================================
-  // Data — Loaded from demo data (replace with API fetch)
-  // ============================================================================
-
-  const loadPolicies = useCallback(() => {
+  const loadPolicies = useCallback(async () => {
     setIsLoading(true)
-    // Simulate loading — replace with real API call
-    setTimeout(() => {
-      setPolicies(DEMO_POLICIES)
+    try {
+      const params = filter !== 'all' ? `?category=${filter}` : ''
+      const data = await apiClient.get<{ policies: Policy[]; total: number }>(`/api/ai/policies${params}`)
+      setPolicies(data.policies)
+    } catch (error) {
+      console.error('Failed to load policies:', error)
+      setPolicies([])
+    } finally {
       setIsLoading(false)
-    }, 300)
-  }, [])
+    }
+  }, [filter])
 
   useEffect(() => {
     loadPolicies()
   }, [loadPolicies])
 
-  // ============================================================================
-  // Policy Actions
-  // ============================================================================
-
-  const handleCardClick = useCallback((policy: Policy) => {
-    setSelectedPolicy(policy)
-    setIsDetailModalOpen(true)
-  }, [])
-
-  const handleEditFromDetail = useCallback((policy: Policy) => {
-    setEditingPolicy(policy)
-    setIsEditModalOpen(true)
-  }, [])
-
-  const handleSavePolicy = useCallback(async () => {
-    loadPolicies()
-  }, [loadPolicies])
-
-  const togglePolicyStatus = useCallback(async (id: string, _isActive: boolean) => {
-    // Toggle locally (replace with API call)
-    setPolicies(prev => prev.map(p => p.id === id ? { ...p, is_active: !p.is_active } : p))
-  }, [])
-
-  const deletePolicy = useCallback(async (id: string) => {
-    // Delete locally (replace with API call)
-    setPolicies(prev => prev.filter(p => p.id !== id))
-  }, [])
-
-  const handlePolicyCreate = async (policyData: {
-    name: string
-    description: string
-    naturalLanguage: string
-    policyType: 'logical' | 'natural_language'
-    dsl: unknown
-    refinedInstruction: string | null
-    entityName: string | null
-    tags: string[]
-    priority: number
-  }) => {
-    // Add locally (replace with API call)
-    const newPolicy: Policy = {
-      id: `user-${Date.now()}`,
-      name: policyData.name,
-      description: policyData.description,
-      natural_language: policyData.naturalLanguage,
-      summary: policyData.description,
-      policy_type: policyData.policyType,
-      dsl: policyData.dsl as Policy['dsl'],
-      refined_instruction: policyData.refinedInstruction,
-      ai_instruction: policyData.naturalLanguage,
-      entity_name: policyData.entityName,
-      is_active: true,
-      priority: policyData.priority,
-      tags: policyData.tags,
-      execution_count: 0,
-      last_executed_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  const handleAddPolicy = async () => {
+    if (!newPolicy.rule_text.trim()) return
+    setIsAdding(true)
+    try {
+      await apiClient.post('/api/ai/policies', {
+        name: newPolicy.name || newPolicy.category,
+        category: newPolicy.category,
+        rule_text: newPolicy.rule_text,
+        severity: newPolicy.severity,
+        is_active: true,
+      })
+      setNewPolicy({ name: '', category: 'banned_term', rule_text: '', severity: 'block' })
+      setShowAddForm(false)
+      await loadPolicies()
+    } catch (error) {
+      console.error('Failed to add policy:', error)
+    } finally {
+      setIsAdding(false)
     }
-    setPolicies(prev => [newPolicy, ...prev])
-    setActiveTab('policies')
   }
 
-  // ============================================================================
-  // Filtering & Sorting
-  // ============================================================================
+  const handleDeletePolicy = async (id: number) => {
+    try {
+      await apiClient.delete(`/api/ai/policies/${id}`)
+      await loadPolicies()
+    } catch (error) {
+      console.error('Failed to delete policy:', error)
+    }
+  }
 
-  const filteredPolicies = policies
-    .filter((policy) => {
-      if (filter === 'active' && !policy.is_active) return false
-      if (filter === 'inactive' && policy.is_active) return false
-      if (filter === 'logical' && policy.policy_type !== 'logical') return false
-      if (filter === 'natural_language' && policy.policy_type !== 'natural_language') return false
+  const handleSeedPolicies = async () => {
+    try {
+      await apiClient.post('/api/ai/seed')
+      await loadPolicies()
+    } catch (error) {
+      console.error('Failed to seed policies:', error)
+    }
+  }
 
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        return (
-          policy.name.toLowerCase().includes(query) ||
-          policy.description.toLowerCase().includes(query) ||
-          policy.natural_language.toLowerCase().includes(query) ||
-          policy.tags.some((tag) => tag.toLowerCase().includes(query))
-        )
-      }
-
-      return true
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case 'priority':
-          return a.priority - b.priority
-        case 'name':
-          return a.name.localeCompare(b.name)
-        case 'executions':
-          return b.execution_count - a.execution_count
-        default:
-          return 0
-      }
-    })
-
-  // ============================================================================
   // Stats
-  // ============================================================================
-
   const stats = {
     total: policies.length,
-    active: policies.filter((p) => p.is_active).length,
-    structured: policies.filter((p) => p.policy_type === 'logical').length,
-    natural: policies.filter((p) => p.policy_type === 'natural_language').length,
+    banned_terms: policies.filter(p => p.category === 'banned_term').length,
+    brand_voice: policies.filter(p => p.category === 'brand_voice_rule').length,
+    posting_limits: policies.filter(p => p.category === 'posting_limit').length,
   }
-
-  // ============================================================================
-  // Render
-  // ============================================================================
 
   return (
     <motion.div
@@ -327,334 +148,198 @@ export default function AIPoliciesPage() {
             AI Policies
           </h1>
           <p className="mt-1 text-lg text-muted-foreground">
-            Define business rules in natural language. The AI determines the best format.
+            Brand safety rules enforced by the AI workforce. Changes sync to Dropbox in real-time.
           </p>
         </div>
-        <Button
-          variant="gradient"
-          onClick={() => setActiveTab('create-ai')}
-          className={activeTab !== 'policies' ? 'opacity-50' : ''}
-        >
-          <Icons.plus className="mr-2 h-4 w-4" />
-          Create Policy
-        </Button>
-      </motion.div>
-
-      {/* Tabs - AT THE TOP */}
-      <motion.div variants={itemVariants}>
-        <div className="flex gap-1 p-1.5 bg-gray-100 rounded-xl">
-          {TABS.map((tab) => (
-            <motion.button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'relative flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                activeTab === tab.id
-                  ? 'text-brand-navy'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              whileHover={{ scale: activeTab === tab.id ? 1 : 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {activeTab === tab.id && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-white rounded-lg shadow-sm"
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                />
-              )}
-              <span className="relative z-10 flex items-center gap-2">
-                <tab.Icon className="h-4 w-4" />
-                {tab.label}
-              </span>
-            </motion.button>
-          ))}
+        <div className="flex gap-2">
+          {policies.length === 0 && (
+            <Button variant="outline" onClick={handleSeedPolicies}>
+              <Icons.zap className="mr-2 h-4 w-4" />
+              Load Defaults
+            </Button>
+          )}
+          <Button variant="gradient" onClick={() => setShowAddForm(!showAddForm)}>
+            <Icons.plus className="mr-2 h-4 w-4" />
+            Add Policy
+          </Button>
         </div>
       </motion.div>
 
-      {/* Tab Content - Use initial={false} on first render to avoid blank state */}
-      <AnimatePresence mode="popLayout">
-        {activeTab === 'policies' && (
-          <motion.div
-            key="policies-tab"
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="space-y-6"
-          >
-          {/* Stats Bar - No initial animation to prevent blank flash */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { value: stats.total, label: 'Total Policies', icon: Icons.layers, bg: 'bg-brand-navy/10', color: 'text-brand-navy' },
-              { value: stats.active, label: 'Active', icon: Icons.check, bg: 'bg-emerald-100', color: 'text-emerald-600' },
-              { value: stats.structured, label: 'Structured', icon: Icons.grid, bg: 'bg-blue-100', color: 'text-blue-600' },
-              { value: stats.natural, label: 'Natural Language', icon: Icons.brain, bg: 'bg-purple-100', color: 'text-purple-600' },
-            ].map((stat) => (
-              <motion.div 
-                key={stat.label}
-                className="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-default"
-                whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-              >
-                <div className="flex items-center gap-3">
-                  <motion.div 
-                    className={cn('p-2 rounded-lg', stat.bg)}
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    transition={{ type: 'spring', stiffness: 400 }}
-                  >
-                    <stat.icon className={cn('h-5 w-5', stat.color)} />
-                  </motion.div>
-                  <div>
-                    <p className={cn('text-2xl font-bold', stat.color)}>
-                      {stat.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+      {/* Stats */}
+      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { value: stats.total, label: 'Total Policies', icon: Icons.layers, color: 'text-brand-navy', bg: 'bg-brand-navy/10' },
+          { value: stats.banned_terms, label: 'Banned Terms', icon: Icons.shield, color: 'text-red-600', bg: 'bg-red-100' },
+          { value: stats.brand_voice, label: 'Brand Voice', icon: Icons.sparkles, color: 'text-purple-600', bg: 'bg-purple-100' },
+          { value: stats.posting_limits, label: 'Posting Limits', icon: Icons.clock, color: 'text-blue-600', bg: 'bg-blue-100' },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className={cn('p-2 rounded-lg', stat.bg)}>
+                <stat.icon className={cn('h-5 w-5', stat.color)} />
+              </div>
+              <div>
+                <p className={cn('text-2xl font-bold', stat.color)}>{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </div>
+            </div>
           </div>
+        ))}
+      </motion.div>
 
-          {/* Filters & Search */}
-          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Icons.search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search policies..."
-                className={cn(
-                  'w-full pl-10 pr-4 py-2.5 rounded-lg border border-input bg-white',
-                  'text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50'
-                )}
-              />
-            </div>
-
-            {/* Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Filter:</span>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value as FilterType)}
-                className="px-3 py-2.5 rounded-lg border border-input bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
-              >
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="logical">Structured</option>
-                <option value="natural_language">Natural Language</option>
-              </select>
-            </div>
-
-            {/* Sort */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortType)}
-                className="px-3 py-2.5 rounded-lg border border-input bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="priority">Priority</option>
-                <option value="name">Name</option>
-                <option value="executions">Most Used</option>
-              </select>
-            </div>
-          </motion.div>
-
-          {/* Policy Grid */}
-          <motion.div variants={itemVariants}>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Icons.loader className="h-8 w-8 animate-spin text-brand-cornflower" />
-              </div>
-            ) : filteredPolicies.length === 0 ? (
-              <Card className="relative overflow-hidden">
-                <CardWatermark opacity={3} scale={1} />
-                <CardContent className="relative z-10 flex flex-col items-center justify-center py-16 text-center">
-                  <div className={cn(
-                    'mb-4 flex h-16 w-16 items-center justify-center rounded-2xl',
-                    'bg-gradient-to-br from-brand-cornflower/20 to-brand-purple/20'
-                  )}>
-                    <Icons.brain className="h-8 w-8 text-brand-cornflower" strokeWidth={1.5} />
-                  </div>
-                  <h3 className="font-display text-lg font-semibold text-brand-navy">
-                    {searchQuery || filter !== 'all' ? 'No matching policies' : 'No policies yet'}
-                  </h3>
-                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    {searchQuery || filter !== 'all'
-                      ? 'Try adjusting your search or filter criteria.'
-                      : 'Create your first AI policy using natural language.'}
-                  </p>
-                  <Button
-                    variant="gradient"
-                    className="mt-6"
-                    onClick={() => setActiveTab('create-ai')}
+      {/* Add Policy Form */}
+      {showAddForm && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+        >
+          <Card className="border-brand-cornflower/30 bg-brand-cornflower/5">
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-brand-navy mb-4">Add New Policy</h3>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={newPolicy.category}
+                    onChange={(e) => setNewPolicy({ ...newPolicy, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
                   >
-                    <Icons.sparkles className="mr-2 h-4 w-4" />
-                    Create with AI
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredPolicies.map((policy) => (
-                  <PolicyCard
-                    key={policy.id}
-                    policy={policy}
-                    onClick={handleCardClick}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-
-      {activeTab === 'create-ai' && (
-        <motion.div
-          key="create-ai-tab"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.15 }}
-        >
-          <Card className="relative overflow-hidden">
-            <CardWatermark opacity={2} scale={1} />
-            <CardContent className="relative z-10 py-8">
-              <CreateWithAI
-                onPolicyCreate={handlePolicyCreate}
-                onCancel={() => setActiveTab('policies')}
-              />
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {activeTab === 'structured' && (
-        <motion.div
-          key="structured-tab"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.15 }}
-        >
-          <Card className="relative overflow-hidden">
-            <CardWatermark opacity={2} scale={1} />
-            <CardContent className="relative z-10 py-8">
-              <div className="max-w-3xl mx-auto">
-                <div className="text-center mb-8">
-                  <h2 className="text-xl font-bold text-brand-navy mb-2">
-                    Structured Rule Builder
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Visually build rules with conditions and actions
-                  </p>
+                    <option value="banned_term">Banned Term</option>
+                    <option value="brand_voice_rule">Brand Voice Rule</option>
+                    <option value="posting_limit">Posting Limit</option>
+                    <option value="custom">Custom</option>
+                  </select>
                 </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Rule Name *</label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {newPolicy.category === 'banned_term' ? 'Term to Ban' : 'Rule Description'}
+                  </label>
                   <input
                     type="text"
-                    value={structuredName}
-                    onChange={(e) => setStructuredName(e.target.value)}
-                    placeholder="e.g., Auto-Approve Low Value Items"
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
+                    value={newPolicy.rule_text}
+                    onChange={(e) => setNewPolicy({ ...newPolicy, rule_text: e.target.value })}
+                    placeholder={newPolicy.category === 'banned_term' ? 'e.g., Nescafe' : 'e.g., Max 2 emojis per post'}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
                   />
                 </div>
-                <StructuredBuilder
-                  onChange={(dsl) => setStructuredDSL(dsl)}
-                />
-                <div className="flex justify-center gap-3 mt-8">
-                  <Button variant="ghost" onClick={() => setActiveTab('policies')}>
-                    Cancel
-                  </Button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+                  <select
+                    value={newPolicy.severity}
+                    onChange={(e) => setNewPolicy({ ...newPolicy, severity: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-cornflower/50"
+                  >
+                    <option value="block">Block (hard stop)</option>
+                    <option value="flag">Flag (needs review)</option>
+                    <option value="warn">Warn (log only)</option>
+                  </select>
+                </div>
+                <div className="flex items-end gap-2">
                   <Button
                     variant="gradient"
-                    disabled={!structuredDSL || structuredDSL.conditions.length === 0 || !structuredName.trim() || isSavingStructured}
-                    onClick={async () => {
-                      if (!structuredDSL || !structuredName.trim()) return
-                      setIsSavingStructured(true)
-                      try {
-                        await handlePolicyCreate({
-                          name: structuredName.trim(),
-                          description: '',
-                          naturalLanguage: `Structured rule: ${structuredName}`,
-                          policyType: 'logical',
-                          dsl: {
-                            conditions: structuredDSL.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value })),
-                            actions: structuredDSL.actions.map(a => ({ type: a.type, value: a.value })),
-                            match_mode: structuredDSL.match_mode,
-                          },
-                          refinedInstruction: null,
-                          entityName: null,
-                          tags: ['structured'],
-                          priority: 50,
-                        })
-                        setStructuredName('')
-                        setStructuredDSL(null)
-                      } finally {
-                        setIsSavingStructured(false)
-                      }
-                    }}
+                    onClick={handleAddPolicy}
+                    disabled={!newPolicy.rule_text.trim() || isAdding}
+                    className="flex-1"
                   >
-                    {isSavingStructured ? (
-                      <><Icons.loader className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                    ) : (
-                      <><Icons.check className="mr-2 h-4 w-4" />Save Policy</>
-                    )}
+                    {isAdding ? <Icons.loader className="h-4 w-4 animate-spin" /> : <Icons.plus className="h-4 w-4 mr-1" />}
+                    Add
+                  </Button>
+                  <Button variant="ghost" onClick={() => setShowAddForm(false)}>
+                    Cancel
                   </Button>
                 </div>
               </div>
+              {newPolicy.category === 'banned_term' && (
+                <p className="mt-3 text-xs text-gray-500">
+                  Adding a banned term syncs it to Dropbox. The Brand Safety Checker will catch it on the next campaign run.
+                </p>
+              )}
             </CardContent>
           </Card>
         </motion.div>
       )}
 
-      {activeTab === 'matrix' && (
-        <motion.div
-          key="matrix-tab"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.15 }}
-        >
-          <PermissionMatrixTab />
+      {/* Filter Tabs */}
+      <motion.div variants={itemVariants} className="flex gap-2 flex-wrap">
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'banned_term', label: 'Banned Terms' },
+          { id: 'brand_voice_rule', label: 'Brand Voice' },
+          { id: 'posting_limit', label: 'Posting Limits' },
+        ].map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              filter === f.id ? 'bg-brand-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </motion.div>
+
+      {/* Policies List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Icons.loader className="h-8 w-8 animate-spin text-brand-cornflower" />
+        </div>
+      ) : policies.length === 0 ? (
+        <motion.div variants={itemVariants}>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-cornflower/20 to-brand-purple/20">
+                <Icons.shield className="h-8 w-8 text-brand-cornflower" />
+              </div>
+              <h3 className="font-display text-lg font-semibold text-brand-navy">No policies yet</h3>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Click &quot;Load Defaults&quot; to populate NovaBrew&apos;s brand safety policies, or add your own.
+              </p>
+              <Button variant="gradient" className="mt-6" onClick={handleSeedPolicies}>
+                <Icons.zap className="mr-2 h-4 w-4" />
+                Load NovaBrew Defaults
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : (
+        <motion.div variants={itemVariants} className="space-y-3">
+          {policies.map((policy) => (
+            <motion.div
+              key={policy.id}
+              layout
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="group"
+            >
+              <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <CategoryBadge category={policy.category} />
+                    <SeverityBadge severity={policy.severity} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{policy.rule_text}</p>
+                    {policy.name && policy.name !== policy.category && (
+                      <p className="text-xs text-gray-400">{policy.name}</p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 hover:bg-red-50 transition-opacity"
+                  onClick={() => handleDeletePolicy(policy.id)}
+                >
+                  <Icons.trash className="h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          ))}
         </motion.div>
       )}
-      </AnimatePresence>
-
-      {/* Detail Modal - View only */}
-      <PolicyDetailModal
-        policy={selectedPolicy}
-        isOpen={isDetailModalOpen}
-        onClose={() => {
-          setIsDetailModalOpen(false)
-          setSelectedPolicy(null)
-        }}
-        onEdit={handleEditFromDetail}
-        onToggleStatus={(id, isActive) => {
-          togglePolicyStatus(id, isActive)
-          setIsDetailModalOpen(false)
-        }}
-        onDelete={(id) => {
-          deletePolicy(id)
-          setIsDetailModalOpen(false)
-        }}
-      />
-
-      {/* Edit Modal */}
-      <PolicyEditModal
-        policy={editingPolicy}
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false)
-          setEditingPolicy(null)
-        }}
-        onSave={handleSavePolicy}
-      />
     </motion.div>
   )
 }

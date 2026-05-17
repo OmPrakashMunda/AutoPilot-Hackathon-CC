@@ -305,3 +305,16 @@ deployment/prod.env
 
 keycloak_convert/
 keycloak_convert.zip
+
+
+# NovaBrew project files (not part of dashboard code)
+knowledge-base/
+dropbox-files/
+prompts/
+campaigns.txt
+flowchart.txt
+TESTING_GUIDE.txt
+PRESENTATION_GUIDE.md
+API_DOCS.txt
+auto-agents-config.json
+Autopilot-Round2-Deck.pdf

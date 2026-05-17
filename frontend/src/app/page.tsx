@@ -1,169 +1,72 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { motion, useInView } from 'framer-motion'
-import apiClient from '@/lib/api-client'
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CardWatermark } from '@/components/ui/card-watermark'
 import { Icons } from '@/components/ui/icons'
-import { ActivityChart } from '@/components/ActivityChart'
 import { cn } from '@/lib/utils'
+import { apiClient } from '@/lib/api-client'
+import { useAI } from '@/context/AIContext'
 
-// Animation variants
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.1,
-    },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
 }
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94],
-    },
-  },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
 }
 
-// Animated number component
-function AnimatedNumber({
-  value,
-  suffix = '',
-  duration = 1000,
-}: {
-  value: number
-  suffix?: string
-  duration?: number
-}) {
-  const [displayValue, setDisplayValue] = useState(0)
-  const ref = useRef<HTMLSpanElement>(null)
-  const isInView = useInView(ref, { once: true, amount: 0.5 })
-  const hasAnimated = useRef(false)
-
-  useEffect(() => {
-    if (!isInView || hasAnimated.current) return
-    hasAnimated.current = true
-
-    const startTime = performance.now()
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(2, -10 * progress)
-
-      setDisplayValue(Math.round(eased * value))
-
-      if (progress < 1) {
-        requestAnimationFrame(animate)
-      } else {
-        setDisplayValue(value)
-      }
-    }
-
-    requestAnimationFrame(animate)
-  }, [value, duration, isInView])
-
-  const formatValue = (num: number): string => {
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K'
-    }
-    return num.toString()
+interface DashboardData {
+  campaigns: {
+    total: number
+    completed: number
+    failed: number
+    success_rate: number
+    avg_duration_ms: number
   }
-
-  return (
-    <span ref={ref}>
-      {formatValue(displayValue)}
-      {suffix}
-    </span>
-  )
+  exceptions: {
+    total: number
+    pending: number
+    resolved: number
+  }
+  agent_performance: Array<{
+    agent: string
+    avg_duration_ms: number
+    total_calls: number
+  }>
+  recent_campaigns: Array<{
+    campaign_id: string
+    brief: string
+    status: string
+    duration_ms: number | null
+    created_at: string | null
+  }>
 }
 
-// Stats Card Component with Bento styling
-interface StatCardProps {
+function StatCard({ title, value, subtitle, icon: Icon, color, bgColor }: {
   title: string
-  value: number
-  suffix?: string
-  icon: React.ElementType
-  trend?: { value: string; positive: boolean }
-  colorClass: string
-  delay?: number
-}
-
-function StatCard({
-  title,
-  value,
-  suffix = '',
-  icon: Icon,
-  trend,
-  colorClass,
-  delay = 0,
-}: StatCardProps) {
+  value: string | number
+  subtitle?: string
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+  bgColor: string
+}) {
   return (
-    <motion.div
-      variants={itemVariants}
-      initial='hidden'
-      animate='visible'
-      transition={{ delay }}
-      whileHover={{ y: -4 }}
-    >
-      <Card className='group relative h-full cursor-default overflow-hidden'>
-        {/* Branded watermark texture */}
-        <CardWatermark opacity={3} scale={0.9} />
-        <CardContent className='relative z-10 p-5'>
-          <div className='flex items-start justify-between'>
-            <div className='space-y-2'>
-              {/* Micro label */}
-              <p className='text-micro uppercase text-brand-muted transition-colors duration-200 group-hover:text-brand-cornflower'>
-                {title}
-              </p>
-              {/* Display number */}
-              <p className='font-display text-[2.25rem] font-bold leading-none tracking-tight text-brand-navy'>
-                <AnimatedNumber value={value} suffix={suffix} />
-              </p>
-              {/* Trend */}
-              {trend && (
-                <motion.p
-                  className={cn(
-                    'flex items-center gap-1 text-xs font-medium',
-                    trend.positive ? 'text-emerald-600' : 'text-red-500'
-                  )}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: delay + 0.3 }}
-                >
-                  {trend.positive ? (
-                    <Icons.trendingUp className='h-3 w-3' strokeWidth={2} />
-                  ) : (
-                    <Icons.trendingUp
-                      className='h-3 w-3 rotate-180'
-                      strokeWidth={2}
-                    />
-                  )}
-                  {trend.value}
-                </motion.p>
-              )}
+    <motion.div variants={itemVariants}>
+      <Card className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-0 shadow-md">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">{title}</p>
+              <p className={cn('text-3xl font-bold mt-1', color)}>{value}</p>
+              {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
             </div>
-            {/* Icon */}
-            <motion.div
-              className={cn(
-                'rounded-xl p-2.5 text-white',
-                'shadow-lg',
-                colorClass
-              )}
-              whileHover={{ scale: 1.15, rotate: 5 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-            >
-              <Icon className='h-5 w-5' strokeWidth={1.5} />
-            </motion.div>
+            <div className={cn('p-3 rounded-2xl', bgColor)}>
+              <Icon className={cn('h-6 w-6', color)} />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -171,189 +74,280 @@ function StatCard({
   )
 }
 
-// Hero Section
-function HeroSection({ userName }: { userName?: string }) {
-  const firstName = userName?.split(' ')[0] || 'there'
-
-  return (
-    <motion.div
-      className='col-span-12 py-2'
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-    >
-      <h1 className='text-display-3 font-bold tracking-tight text-brand-navy lg:text-display-2'>
-        Where Intelligence <br className='hidden sm:block' />
-        <span className='text-gradient'>Meets Human.</span>
-      </h1>
-      <p className='mt-4 text-lg font-light text-muted-foreground'>
-        Welcome back, {firstName}. Your AI Command Center is ready.
-      </p>
-    </motion.div>
-  )
+function StatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case 'completed':
+      return <Icons.check className="h-3.5 w-3.5 text-emerald-600" />
+    case 'completed_with_exceptions':
+      return <Icons.alertTriangle className="h-3.5 w-3.5 text-amber-600" />
+    case 'failed':
+      return <Icons.alertCircle className="h-3.5 w-3.5 text-red-600" />
+    default:
+      return <Icons.loader className="h-3.5 w-3.5 text-blue-600 animate-spin" />
+  }
 }
 
-// Diagnostics Card
-function DiagnosticsCard() {
-  const [apiResponse, setApiResponse] = useState<string>('')
-  const [adminResponse, setAdminResponse] = useState<string>('')
-  const [isLoading, setIsLoading] = useState(false)
+export default function HomePage() {
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const { openManager } = useAI()
 
-  const callApi = async (
-    endpoint: string,
-    setter: React.Dispatch<React.SetStateAction<string>>
-  ) => {
-    setIsLoading(true)
-    setter('Loading...')
+  const loadDashboard = async () => {
     try {
-      const data = await apiClient(endpoint)
-      setter(JSON.stringify(data, null, 2))
+      const result = await apiClient.get<DashboardData>('/api/ai/insights')
+      setData(result)
     } catch (error) {
-      setter(
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      console.error('Failed to load dashboard:', error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  return (
-    <Card className='relative col-span-12 h-full overflow-hidden'>
-      <CardWatermark opacity={3} scale={1.1} />
-      <CardHeader className='relative z-10'>
-        <CardTitle className='flex items-center gap-2'>
-          <Icons.activity
-            className='h-5 w-5 text-brand-cornflower'
-            strokeWidth={1.5}
-          />
-          System Diagnostics
-        </CardTitle>
-      </CardHeader>
-      <CardContent className='relative z-10 space-y-6'>
-        <div className='space-y-3'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <p className='text-sm font-medium text-foreground'>
-                Standard Authorization
-              </p>
-              <p className='mt-0.5 font-mono text-xs text-muted-foreground'>
-                /api/test
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => callApi('/api/test', setApiResponse)}
-            disabled={isLoading}
-            variant='outline'
-            className='w-full'
-          >
-            {isLoading ? 'Running...' : 'Run Diagnostics'}
-          </Button>
-          {apiResponse && (
-            <div className='rounded-xl border border-border/50 bg-muted/30 p-4'>
-              <pre className='overflow-x-auto font-mono text-xs text-muted-foreground'>
-                <code>{apiResponse}</code>
-              </pre>
-            </div>
-          )}
-        </div>
+  useEffect(() => {
+    loadDashboard()
+  }, [])
 
-        <div className='h-px bg-border/50' />
+  const handleSync = async () => {
+    setIsSyncing(true)
+    try {
+      await apiClient.get('/api/ai/campaigns/sync')
+      await loadDashboard()
+    } catch (error) {
+      console.error('Sync failed:', error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
-        <div className='space-y-3'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <p className='text-sm font-medium text-foreground'>
-                Admin Verification
-              </p>
-              <p className='mt-0.5 font-mono text-xs text-muted-foreground'>
-                /api/admin/dashboard
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={() => callApi('/api/admin/dashboard', setAdminResponse)}
-            disabled={isLoading}
-            variant='gradient'
-            className='w-full'
-          >
-            {isLoading ? 'Verifying...' : 'Verify Admin Access'}
-            <Icons.arrowRight className='ml-2 h-4 w-4' />
-          </Button>
-          {adminResponse && (
-            <div className='rounded-xl border border-border/50 bg-muted/30 p-4'>
-              <pre className='overflow-x-auto font-mono text-xs text-muted-foreground'>
-                <code>{adminResponse}</code>
-              </pre>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// Main Dashboard — no auth required, renders directly
-export default function HomePage() {
   return (
     <motion.div
-      className='space-y-6'
+      className="space-y-8"
       variants={containerVariants}
-      initial='hidden'
-      animate='visible'
+      initial="hidden"
+      animate="visible"
     >
       {/* Hero Section */}
-      <HeroSection userName='Developer' />
+      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1A1A1A] via-[#2D2D2D] to-[#1A1A1A] p-8 lg:p-12">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#F5A623]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#F5A623]/5 rounded-full blur-2xl" />
+        
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
+              NovaBrew Command Center
+            </h1>
+            <p className="mt-2 text-lg text-gray-300 max-w-xl">
+              Your AI marketing workforce. Orchestrate campaigns, enforce brand safety, and publish across channels — all from one place.
+            </p>
+            <div className="flex items-center gap-3 mt-4">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 rounded-full">
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                <span className="text-xs font-medium text-emerald-300">6 Agents Online</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F5A623]/20 rounded-full">
+                <Icons.zap className="h-3 w-3 text-[#F5A623]" />
+                <span className="text-xs font-medium text-[#F5A623]">Fuel Your Flow</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="border-[#F5A623]/50 text-[#F5A623] hover:bg-[#F5A623]/10 hover:text-[#F5A623]"
+            >
+              {isSyncing ? <Icons.loader className="mr-2 h-4 w-4 animate-spin" /> : <Icons.refresh className="mr-2 h-4 w-4" />}
+              Sync
+            </Button>
+            <Button
+              onClick={openManager}
+              className="bg-[#F5A623] hover:bg-[#E09000] text-black font-semibold px-6 py-3 rounded-xl shadow-lg shadow-[#F5A623]/25 transition-all hover:shadow-xl hover:shadow-[#F5A623]/30 hover:-translate-y-0.5"
+            >
+              <Icons.sparkles className="mr-2 h-5 w-5" />
+              Launch Campaign
+            </Button>
+          </div>
+        </div>
+      </motion.div>
 
-      {/* Stats Grid - Bento style */}
-      <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+      {/* KPI Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title='Total Users'
-          value={10400}
-          icon={Icons.users}
-          trend={{ value: '+12%', positive: true }}
-          colorClass='bg-brand-navy'
-          delay={0.1}
+          title="Campaigns Run"
+          value={data?.campaigns.total || 0}
+          subtitle={`${data?.campaigns.success_rate || 0}% success`}
+          icon={Icons.layers}
+          color="text-[#1A1A1A]"
+          bgColor="bg-[#1A1A1A]/10"
         />
         <StatCard
-          title='Active Sessions'
-          value={524}
-          icon={Icons.activity}
-          trend={{ value: '+8%', positive: true }}
-          colorClass='bg-brand-cornflower'
-          delay={0.2}
+          title="Avg Duration"
+          value={data?.campaigns.avg_duration_ms ? `${(data.campaigns.avg_duration_ms / 1000).toFixed(0)}s` : '--'}
+          subtitle="per campaign"
+          icon={Icons.clock}
+          color="text-[#F5A623]"
+          bgColor="bg-[#F5A623]/10"
         />
         <StatCard
-          title='Success Rate'
-          value={98}
-          suffix='%'
-          icon={Icons.checkCircle}
-          trend={{ value: '+2%', positive: true }}
-          colorClass='bg-brand-purple'
-          delay={0.3}
+          title="Exceptions Caught"
+          value={data?.exceptions.total || 0}
+          subtitle={`${data?.exceptions.pending || 0} pending review`}
+          icon={Icons.shield}
+          color="text-red-600"
+          bgColor="bg-red-100"
         />
         <StatCard
-          title='AI Confidence'
-          value={96}
-          suffix='%'
-          icon={Icons.sparkles}
-          trend={{ value: 'Stable', positive: true }}
-          colorClass='bg-gradient-to-br from-brand-navy to-brand-purple'
-          delay={0.4}
+          title="Policies Active"
+          value="20"
+          subtitle="brand safety rules"
+          icon={Icons.brain}
+          color="text-purple-600"
+          bgColor="bg-purple-100"
         />
       </div>
 
-      {/* Activity Chart - Full Width */}
-      <motion.div variants={itemVariants}>
-        <ActivityChart className='col-span-12' />
-      </motion.div>
+      {/* Agent Status + Recent Campaigns */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Agent Workforce */}
+        <motion.div variants={itemVariants}>
+          <Card className="border-0 shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-[#1A1A1A]">
+                <Icons.zap className="h-5 w-5 text-[#F5A623]" />
+                AI Workforce Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { name: 'Campaign Orchestrator', role: 'Manager', icon: Icons.layers },
+                  { name: 'Trend Analyser', role: 'Research', icon: Icons.activity },
+                  { name: 'Content Adapter', role: 'Writing', icon: Icons.fileText },
+                  { name: 'Brand Safety Checker', role: 'Compliance', icon: Icons.shield },
+                  { name: 'Social Scheduler', role: 'Publishing', icon: Icons.share },
+                  { name: 'Knowledge Base', role: 'Intelligence', icon: Icons.brain },
+                ].map((agent) => (
+                  <div key={agent.name} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 bg-emerald-50 rounded-lg">
+                        <agent.icon className="h-3.5 w-3.5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{agent.name}</p>
+                        <p className="text-xs text-gray-400">{agent.role}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      online
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      {/* System Diagnostics */}
-      <motion.div
-        className='grid gap-6 lg:grid-cols-12'
-        variants={itemVariants}
-      >
-        <DiagnosticsCard />
+        {/* Recent Campaigns */}
+        <motion.div variants={itemVariants}>
+          <Card className="border-0 shadow-md">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-[#1A1A1A]">
+                <Icons.clock className="h-5 w-5 text-[#F5A623]" />
+                Recent Campaigns
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/campaigns'} className="text-xs text-gray-500">
+                View All
+                <Icons.arrowRight className="ml-1 h-3 w-3" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {!data?.recent_campaigns?.length ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Icons.sparkles className="h-10 w-10 text-gray-200 mb-3" />
+                  <p className="text-sm text-gray-400">No campaigns yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Use the AI Manager to launch your first campaign</p>
+                  <Button variant="outline" size="sm" className="mt-4" onClick={openManager}>
+                    Launch Campaign
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.recent_campaigns.filter(c => !c.brief.toLowerCase().startsWith('what can')).slice(0, 5).map((campaign) => (
+                    <div key={campaign.campaign_id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <StatusIcon status={campaign.status} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{campaign.brief}</p>
+                          <p className="text-xs text-gray-400">{campaign.campaign_id}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <span className={cn(
+                          'px-2 py-0.5 rounded-full text-xs font-medium',
+                          campaign.status === 'completed' ? 'text-emerald-600 bg-emerald-50' :
+                          campaign.status === 'failed' ? 'text-red-600 bg-red-50' :
+                          'text-amber-600 bg-amber-50'
+                        )}>
+                          {campaign.status.replace(/_/g, ' ')}
+                        </span>
+                        {campaign.duration_ms && (
+                          <span className="text-xs font-mono text-gray-400">
+                            {(campaign.duration_ms / 1000).toFixed(0)}s
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Quick Actions */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-0 shadow-md bg-gradient-to-r from-gray-50 to-white">
+          <CardContent className="p-6">
+            <h3 className="font-semibold text-[#1A1A1A] mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex-col gap-2 hover:bg-[#F5A623]/5 hover:border-[#F5A623]/30"
+                onClick={openManager}
+              >
+                <Icons.sparkles className="h-5 w-5 text-[#F5A623]" />
+                <span className="text-xs">New Campaign</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex-col gap-2 hover:bg-red-50 hover:border-red-200"
+                onClick={() => window.location.href = '/workbench'}
+              >
+                <Icons.alertTriangle className="h-5 w-5 text-red-500" />
+                <span className="text-xs">Review Exceptions</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex-col gap-2 hover:bg-purple-50 hover:border-purple-200"
+                onClick={() => window.location.href = '/ai/policies'}
+              >
+                <Icons.shield className="h-5 w-5 text-purple-500" />
+                <span className="text-xs">Manage Policies</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex-col gap-2 hover:bg-blue-50 hover:border-blue-200"
+                onClick={() => window.location.href = '/ai/insights'}
+              >
+                <Icons.activity className="h-5 w-5 text-blue-500" />
+                <span className="text-xs">View Insights</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
     </motion.div>
   )
